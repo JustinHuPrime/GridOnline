@@ -1,0 +1,11 @@
+[package]
+name = "grid_client"
+version = "0.1.0"
+authors = ["Justin Hu <justin.hu@alumni.ubc.ca>"]
+edition = "2024"
+description = "Wasm client package for Grid, a card game"
+homepage = "https://github.com/JustinHuPrime/GridOnline#readme"
+repository = "https://github.com/JustinHuPrime/GridOnline"
+license = "AGPL-3.0-or-later"
+
+[dependencies]

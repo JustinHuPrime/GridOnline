@@ -1,0 +1,5 @@
+[workspace]
+members = ["grid_client", "grid_common", "grid_server"]
+resolver = "2"
+
+[workspace.dependencies]

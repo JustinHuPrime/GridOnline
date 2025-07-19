@@ -1,0 +1,6 @@
+version: 2
+updates:
+- package-ecosystem: "cargo"
+  directories: ["/", "/grid_client", "/grid_common", "/grid_server"]
+  schedule:
+    interval: "weekly"
