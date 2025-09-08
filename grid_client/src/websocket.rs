@@ -87,8 +87,8 @@ impl<T> Drop for HandlerRef<'_, T> {
 
 pub struct WebSocketClient {
     raw_ws: WebSocket,
-    raw_on_open: Option<EventListener>,
-    raw_on_message: EventListener,
+    _raw_on_open: Option<EventListener>,
+    _raw_on_message: EventListener,
     queue: Rc<RefCell<VecDeque<String>>>,
     error: Rc<RefCell<Option<JsValue>>>,
     on_message: Rc<Handler<String>>,
@@ -106,7 +106,7 @@ impl WebSocketClient {
 
         Ok(Self {
             raw_ws: raw_ws.clone(),
-            raw_on_open: init_message.map(|message| {
+            _raw_on_open: init_message.map(|message| {
                 EventListener::new(raw_ws.clone().into(), "open", {
                     let on_open_raw_ws = raw_ws.clone();
                     let on_open_error = error.clone();
@@ -123,7 +123,7 @@ impl WebSocketClient {
                     }
                 })
             }),
-            raw_on_message: EventListener::new(raw_ws.clone().into(), "message", {
+            _raw_on_message: EventListener::new(raw_ws.clone().into(), "message", {
                 let on_message_queue = queue.clone();
                 let handler = on_message.clone();
                 move |msg| {

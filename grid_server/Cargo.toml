@@ -9,3 +9,15 @@ repository = "https://github.com/JustinHuPrime/GridOnline"
 license = "AGPL-3.0-or-later"
 
 [dependencies]
+anyhow = "1.0.99"
+axum = { version = "0.8.4", features = ["tokio", "ws"] }
+axum-extra = "0.10.1"
+clap = { version = "4.5.47", features = ["derive"] }
+futures-util = "0.3.31"
+grid_common = { path = "../grid_common" }
+rand = "0.8"
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+thiserror = "2.0.16"
+tokio = { version = "1.47.1", features = ["rt-multi-thread"] }
+tokio-tungstenite = "0.27.0"

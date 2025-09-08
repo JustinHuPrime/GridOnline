@@ -18,7 +18,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use dioxus::prelude::*;
-use grid_common::ClientVisibleGameState;
+use grid_common::PlayerVisibleGameState;
 
 use crate::{ClientState, WEBSOCKET, websocket::WebSocketClient};
 
@@ -112,6 +112,10 @@ pub fn Join(state: Signal<ClientState>) -> Element {
                                             error_message.set(Some("No open seats".to_string()));
                                             *WEBSOCKET.write() = None;
                                         }
+                                        "username" => {
+                                            error_message.set(Some("Username already taken".to_string()));
+                                            *WEBSOCKET.write() = None;
+                                        }
                                         "join code" => {
                                             error_message.set(Some("Incorrect join code".to_string()));
                                             *WEBSOCKET.write() = None;
@@ -160,22 +164,22 @@ pub fn WaitingForPlayers(state: Signal<ClientState>) -> Element {
 }
 
 #[component]
-pub fn NotYourTurn(state: Signal<ClientState>, game_state: ClientVisibleGameState) -> Element {
+pub fn NotYourTurn(state: Signal<ClientState>, game_state: PlayerVisibleGameState) -> Element {
     rsx! {}
 }
 
 #[component]
-pub fn YourTurn(state: Signal<ClientState>, game_state: ClientVisibleGameState) -> Element {
+pub fn YourTurn(state: Signal<ClientState>, game_state: PlayerVisibleGameState) -> Element {
     rsx! {}
 }
 
 #[component]
-pub fn YouLost(game_state: ClientVisibleGameState) -> Element {
+pub fn YouLost(game_state: PlayerVisibleGameState) -> Element {
     rsx! {}
 }
 
 #[component]
-pub fn YouWin(game_state: ClientVisibleGameState) -> Element {
+pub fn YouWin(game_state: PlayerVisibleGameState) -> Element {
     rsx! {}
 }
 
@@ -201,7 +205,7 @@ fn protocol_error(mut state: Signal<ClientState>) {
 }
 
 fn dispatch_next_game_state(mut state: Signal<ClientState>, message: String) {
-    let Ok(game_state) = serde_json::from_str::<ClientVisibleGameState>(&message) else {
+    let Ok(game_state) = serde_json::from_str::<PlayerVisibleGameState>(&message) else {
         protocol_error(state);
         return;
     };

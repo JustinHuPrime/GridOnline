@@ -23,7 +23,7 @@ mod scenes;
 mod websocket;
 
 use dioxus::prelude::*;
-use grid_common::ClientVisibleGameState;
+use grid_common::PlayerVisibleGameState;
 
 use crate::scenes::*;
 use crate::websocket::WebSocketClient;
@@ -34,10 +34,10 @@ enum ClientState {
     Error(String),
     Login,
     WaitingForPlayers,
-    NotYourTurn(ClientVisibleGameState),
-    YourTurn(ClientVisibleGameState),
-    YouLost(ClientVisibleGameState),
-    YouWin(ClientVisibleGameState),
+    NotYourTurn(PlayerVisibleGameState),
+    YourTurn(PlayerVisibleGameState),
+    YouLost(PlayerVisibleGameState),
+    YouWin(PlayerVisibleGameState),
 }
 
 fn main() {

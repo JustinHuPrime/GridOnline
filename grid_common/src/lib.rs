@@ -21,8 +21,6 @@
 
 #![warn(missing_docs)]
 
-use std::fmt::Debug;
-
 use serde::{Deserialize, Serialize};
 
 /// The size of the game board
@@ -30,10 +28,10 @@ pub const BOARD_SIZE: usize = 11;
 /// Hand size
 pub const HAND_SIZE: usize = 5;
 
-/// Game state visible to a client
+/// Game state visible to a player
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[expect(missing_docs)]
-pub struct ClientVisibleGameState {
+pub struct PlayerVisibleGameState {
     pub board: Board,
     pub hand: Hand,
     pub deck: Deck,
@@ -42,7 +40,18 @@ pub struct ClientVisibleGameState {
     pub turn: usize,
 }
 
+/// A move a player can make
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PlayerMove {
+    /// Which card, indexed from their hand
+    pub card: usize,
+    /// Where, as indexes into the board position
+    pub location: (usize, usize),
+}
+
 /// The game board
+///
+/// Row-major order (i.e. innermost array = a row)
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(transparent)]
 pub struct Board(pub [[Option<Card>; BOARD_SIZE]; BOARD_SIZE]);
@@ -58,12 +67,12 @@ pub struct Hand(pub Vec<Card>);
 pub struct Deck(pub Vec<Card>);
 
 /// A card
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Card(pub Suit, pub Value);
 
 /// The suit of a card
 #[expect(missing_docs)]
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(u8)]
 pub enum Suit {
     #[serde(rename = "C")]
@@ -78,7 +87,7 @@ pub enum Suit {
 
 /// The value of a card
 #[expect(missing_docs)]
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(u8)]
 pub enum Value {
     #[serde(rename = "A")]
