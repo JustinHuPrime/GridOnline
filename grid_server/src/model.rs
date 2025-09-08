@@ -52,6 +52,13 @@ pub struct PlayerState {
     deck: Deck,
 }
 
+impl PlayerState {
+    /// Check if the player has any cards (in hand or deck)
+    pub fn has_cards(&self) -> bool {
+        !self.hand.0.is_empty() || !self.deck.0.is_empty()
+    }
+}
+
 impl GameState {
     pub fn new(player_names: Vec<String>, game_options: GameOptions) -> Self {
         let num_players = player_names.len();
@@ -170,15 +177,34 @@ impl GameState {
         }
     }
 
+    pub fn get_options(&self) -> &GameOptions {
+        &self.game_options
+    }
+
     pub fn get_player_names(&self) -> Vec<String> {
         self.players.iter().map(|(name, _)| name.clone()).collect()
     }
 
-    pub fn current_player(&self) -> &str {
+    pub fn current_player(&self) -> (&str, &PlayerState) {
         self.players
             .get(self.turn)
-            .map(|(name, _)| name.as_str())
+            .map(|(name, state)| (name.as_str(), state))
             .unwrap()
+    }
+
+    /// Check if the current player has won (all other players have no cards left)
+    pub fn current_player_has_won(&self) -> bool {
+        // A player wins when all OTHER players have no cards left
+        self.players
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| *i != self.turn) // Exclude current player
+            .all(|(_, (_, player_state))| !player_state.has_cards())
+    }
+
+    /// Skip the current player's turn and move to the next player
+    pub fn skip_player(&mut self) {
+        self.turn = (self.turn + 1) % self.players.len();
     }
 
     /// Make a move

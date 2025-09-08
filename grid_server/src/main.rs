@@ -150,6 +150,25 @@ impl ServerState {
             .await;
         self.lost_connection(username);
     }
+
+    /// Reset from Running state back to Lobby state for next game
+    fn reset_to_lobby(&mut self, num_players: usize) {
+        let ServerState::Running {
+            game_state,
+            join_code,
+            ..
+        } = self
+        else {
+            panic!("tried to reset a non-running server to lobby");
+        };
+
+        *self = ServerState::Lobby {
+            options: game_state.get_options().clone(),
+            num_players,
+            join_code: join_code.clone(),
+            connections: HashMap::new(),
+        };
+    }
 }
 
 fn generate_join_code() -> String {
@@ -212,6 +231,13 @@ async fn handle_websocket(
         code: 4002,
         reason: "protocol error".into(),
     }));
+
+    fn end_of_game(winner: &str) -> Message {
+        Message::Close(Some(CloseFrame {
+            code: 4000,
+            reason: format!("player won\n{winner}").into(),
+        }))
+    }
 
     let (mut send, mut recv) = socket.split();
 
@@ -315,58 +341,97 @@ async fn handle_websocket(
 
     // gameplay flow
     loop {
-        // Check state: if it's the current player's turn
-        let is_current_player = {
-            let state_guard = state.lock().await;
-            let ServerState::Running { game_state, .. } = &*state_guard else {
-                unreachable!();
-            };
-            let current_player_name = game_state.current_player();
-            current_player_name == username
-        };
-
-        if is_current_player {
-            // Release state lock and wait for a PlayerMove from current player
-            let Some(Ok(Message::Text(text))) = recv.next().await else {
-                state
-                    .lock()
-                    .await
-                    .server_disconnect(username, protocol_error)
-                    .await;
-                return;
-            };
-            let Ok(player_move) = serde_json::from_str::<PlayerMove>(&text) else {
-                state
-                    .lock()
-                    .await
-                    .server_disconnect(username, protocol_error)
-                    .await;
-                return;
-            };
-
-            // Try to apply the move
-            let mut state_guard = state.lock().await;
-            let ServerState::Running { game_state, .. } = &mut *state_guard else {
-                unreachable!();
-            };
-            let move_valid = game_state.apply_move(player_move);
-
-            if !move_valid {
-                // Invalid move, disconnect player
-                state
-                    .lock()
-                    .await
-                    .server_disconnect(username, protocol_error)
-                    .await;
-                return;
-            }
-
-            // Broadcast updated game state to all players
-            state_guard.broadcast_state().await;
-            drop(state_guard);
-        }
-
         // Wait at next_state barrier for next round
         next_state.wait().await;
+
+        // Check if it's the current player's turn
+        let state_guard = state.lock().await;
+        let ServerState::Running { game_state, .. } = &*state_guard else {
+            unreachable!();
+        };
+        let current_player = game_state.current_player();
+        let is_current_player = current_player.0 == username;
+        let current_player_has_cards = current_player.1.has_cards();
+        let current_player_has_won = game_state.current_player_has_won();
+        drop(state_guard);
+
+        if is_current_player {
+            // if current player has no cards, skip the current player's turn and rebroadcast state
+            if !current_player_has_cards {
+                let mut state_guard = state.lock().await;
+                let ServerState::Running { game_state, .. } = &mut *state_guard else {
+                    unreachable!();
+                };
+                game_state.skip_player();
+                state_guard.broadcast_state().await;
+                drop(state_guard);
+            } else if current_player_has_won {
+                // Disconnect everyone
+                let mut state_guard = state.lock().await;
+                let ServerState::Running {
+                    connections,
+                    game_state,
+                    ..
+                } = &mut *state_guard
+                else {
+                    unreachable!();
+                };
+
+                let winner_message = end_of_game(username);
+                let to_disconnect = connections.keys().cloned().collect::<Vec<_>>();
+                let num_players = game_state.get_player_names().len();
+
+                for username in to_disconnect {
+                    let _ = state_guard
+                        .server_disconnect(&username, winner_message.clone())
+                        .await;
+                }
+
+                // Reset server to lobby for next game
+                state_guard.reset_to_lobby(num_players);
+                return;
+            } else {
+                // Wait for a PlayerMove from current player
+                let Some(Ok(Message::Text(text))) = recv.next().await else {
+                    state
+                        .lock()
+                        .await
+                        .server_disconnect(username, protocol_error)
+                        .await;
+                    return;
+                };
+                let Ok(player_move) = serde_json::from_str::<PlayerMove>(&text) else {
+                    state
+                        .lock()
+                        .await
+                        .server_disconnect(username, protocol_error)
+                        .await;
+                    return;
+                };
+
+                // Try to apply the move
+                let mut state_guard = state.lock().await;
+                let ServerState::Running { game_state, .. } = &mut *state_guard else {
+                    unreachable!();
+                };
+                let move_valid = game_state.apply_move(player_move);
+
+                if !move_valid {
+                    // Invalid move, disconnect player
+                    state
+                        .lock()
+                        .await
+                        .server_disconnect(username, protocol_error)
+                        .await;
+                    return;
+                }
+
+                // Broadcast updated game state to all players
+                state_guard.broadcast_state().await;
+                drop(state_guard);
+            }
+        } else if current_player_has_won {
+            return;
+        }
     }
 }
