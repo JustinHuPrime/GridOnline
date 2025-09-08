@@ -9,3 +9,5 @@ repository = "https://github.com/JustinHuPrime/GridOnline"
 license = "AGPL-3.0-or-later"
 
 [dependencies]
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
