@@ -30,7 +30,7 @@ jobs:
       run: dx bundle --platform web --package grid_client
 
     - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v1
+      uses: aws-actions/configure-aws-credentials@v5.0.0
       with:
         role-to-assume: arn:aws:iam::491624026173:role/grid-online-s3-uploader
         aws-region: ca-central-1
