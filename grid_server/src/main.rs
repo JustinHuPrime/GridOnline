@@ -112,6 +112,11 @@ impl ServerState {
             panic!("tried to broadcast from a non-running server");
         };
 
+        eprintln!(
+            "broadcasting state to all {} believed-connected players",
+            connections.len()
+        );
+
         let mut disconnected_players = Vec::new();
 
         for (username, connection) in connections.iter_mut() {
@@ -226,6 +231,7 @@ async fn main() {
     .unwrap();
 }
 
+#[expect(clippy::type_complexity)]
 async fn websocket_handler(
     ws: WebSocketUpgrade,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -235,7 +241,7 @@ async fn websocket_handler(
         Arc<Semaphore>,
     )>,
 ) -> Response {
-    println!("New WebSocket connection established from {}", addr);
+    eprintln!("New WebSocket connection established from {}", addr);
     ws.on_upgrade(move |socket| handle_websocket(socket, state, next_state, started_semaphore))
 }
 
@@ -278,10 +284,13 @@ async fn handle_websocket(
             join_code,
             ..
         } => {
+            eprintln!("{username} trying to join new game with code {attempt_join_code}");
+
             // check join code
             if join_code != attempt_join_code {
                 drop(state_guard);
                 let _ = send.send(Message::text("join code")).await;
+                eprintln!("{username} rejected - bad join code");
                 return;
             }
 
@@ -289,6 +298,7 @@ async fn handle_websocket(
             if connections.len() >= *num_players {
                 drop(state_guard);
                 let _ = send.send(Message::text("game full")).await;
+                eprintln!("{username} rejected - game full");
                 return;
             }
 
@@ -301,6 +311,9 @@ async fn handle_websocket(
             {
                 drop(state_guard);
                 let _ = send.send(Message::text("username taken")).await;
+                eprintln!(
+                    "{username} rejected - there is an existing connection for that username"
+                );
                 return;
             }
 
@@ -316,6 +329,7 @@ async fn handle_websocket(
             if connections.len() == *num_players {
                 state_guard.start().await;
                 started_semaphore.add_permits(1);
+                eprintln!("game starting");
             }
         }
         ServerState::Running {
@@ -323,10 +337,13 @@ async fn handle_websocket(
             connections,
             join_code,
         } => {
+            eprintln!("{username} trying to join existing game with code {attempt_join_code}");
+
             // Check join code
             if join_code != attempt_join_code {
                 drop(state_guard);
                 let _ = send.send(Message::text("join code")).await;
+                eprintln!("{username} rejected - bad join code");
                 return;
             }
 
@@ -335,6 +352,7 @@ async fn handle_websocket(
             let Some(player_index) = player_names.iter().position(|name| name == username) else {
                 drop(state_guard);
                 let _ = send.send(Message::text("full")).await;
+                eprintln!("{username} rejected - game full");
                 return;
             };
 
@@ -347,6 +365,9 @@ async fn handle_websocket(
             {
                 drop(state_guard);
                 let _ = send.send(Message::text("username")).await;
+                eprintln!(
+                    "{username} rejected - there is an existing connection for that username"
+                );
                 return;
             }
 
@@ -386,6 +407,7 @@ async fn handle_websocket(
         if is_current_player {
             // if current player has no cards, skip the current player's turn and rebroadcast state
             if !current_player_has_cards {
+                eprintln!("skipping {username}'s turn - they have no cards");
                 let mut state_guard = state.lock().await;
                 let ServerState::Running { game_state, .. } = &mut *state_guard else {
                     unreachable!();
@@ -394,7 +416,7 @@ async fn handle_websocket(
                 state_guard.broadcast_state().await;
                 drop(state_guard);
             } else if current_player_has_won {
-                // Disconnect everyone
+                eprintln!("{username} has won");
                 let mut state_guard = state.lock().await;
                 let ServerState::Running {
                     connections,
@@ -420,6 +442,8 @@ async fn handle_websocket(
                 started_semaphore.forget_permits(1);
                 return;
             } else {
+                eprintln!("waiting for move from {username}");
+
                 // Wait for a PlayerMove from current player
                 let Some(Ok(Message::Text(text))) = recv.next().await else {
                     state
@@ -452,6 +476,7 @@ async fn handle_websocket(
                         .await
                         .server_disconnect(username, protocol_error)
                         .await;
+                    eprintln!("disconnected {username} for playing a bad move");
                     return;
                 }
 
