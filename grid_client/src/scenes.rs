@@ -149,6 +149,10 @@ pub fn Join(state: Signal<ClientState>) -> Element {
                 disabled: *submitting.read(),
                 "Join Game"
             }
+            p {
+                class: "row",
+                a { href: "https://github.com/JustinHuPrime/GridOnline", "View the source code" }
+            }
         }
     }
 }
