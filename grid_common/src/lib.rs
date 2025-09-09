@@ -158,8 +158,3 @@ pub enum Value {
     #[serde(rename = "K")]
     King,
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-}
