@@ -21,6 +21,7 @@
 
 mod scenes;
 mod websocket;
+mod display;
 
 use dioxus::prelude::*;
 use grid_common::PlayerVisibleGameState;

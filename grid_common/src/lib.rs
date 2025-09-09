@@ -21,6 +21,8 @@
 
 #![warn(missing_docs)]
 
+use std::fmt::Display;
+
 use serde::{Deserialize, Serialize};
 
 /// The size of the game board
@@ -69,6 +71,36 @@ pub struct Deck(pub Vec<Card>);
 /// A card
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Card(pub Suit, pub Value);
+impl Display for Card {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut character = match self.0 {
+            Suit::Clubs => 0x1f0a0,
+            Suit::Diamonds => 0x1f0b0,
+            Suit::Hearts => 0x1f0c0,
+            Suit::Spades => 0x1f0d0,
+        };
+        character |= match self.1 {
+            Value::Ace => 0x1,
+            Value::Two => 0x2,
+            Value::Three => 0x3,
+            Value::Four => 0x4,
+            Value::Five => 0x5,
+            Value::Six => 0x6,
+            Value::Seven => 0x7,
+            Value::Eight => 0x8,
+            Value::Nine => 0x9,
+            Value::Ten => 0xa,
+            Value::Jack => 0xb,
+            Value::Queen => 0xd,
+            Value::King => 0xe,
+        };
+        write!(
+            f,
+            "{}",
+            char::from_u32(character).expect("constructed from constants")
+        )
+    }
+}
 
 /// The suit of a card
 #[expect(missing_docs)]
@@ -83,6 +115,15 @@ pub enum Suit {
     Hearts,
     #[serde(rename = "S")]
     Spades,
+}
+impl Suit {
+    /// Get the display colour of this suit
+    pub fn colour(&self) -> &'static str {
+        match *self {
+            Suit::Clubs | Suit::Spades => "#000000",
+            Suit::Diamonds | Suit::Hearts => "#ff0000",
+        }
+    }
 }
 
 /// The value of a card

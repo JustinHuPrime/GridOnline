@@ -18,9 +18,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use dioxus::prelude::*;
-use grid_common::PlayerVisibleGameState;
+use grid_common::{BOARD_SIZE, PlayerMove, PlayerVisibleGameState};
 
-use crate::{ClientState, WEBSOCKET, websocket::WebSocketClient};
+use crate::{ClientState, WEBSOCKET, display::Game, websocket::WebSocketClient};
 
 #[component]
 pub fn Join(state: Signal<ClientState>) -> Element {
@@ -110,14 +110,18 @@ pub fn Join(state: Signal<ClientState>) -> Element {
                                         }
                                         "full" => {
                                             error_message.set(Some("No open seats".to_string()));
+                                            *submitting.write() = false;
                                             *WEBSOCKET.write() = None;
                                         }
                                         "username" => {
-                                            error_message.set(Some("Username already taken".to_string()));
+                                            error_message
+                                                .set(Some("Username already taken".to_string()));
+                                            *submitting.write() = false;
                                             *WEBSOCKET.write() = None;
                                         }
                                         "join code" => {
                                             error_message.set(Some("Incorrect join code".to_string()));
+                                            *submitting.write() = false;
                                             *WEBSOCKET.write() = None;
                                         }
                                         _ => {
@@ -165,22 +169,137 @@ pub fn WaitingForPlayers(state: Signal<ClientState>) -> Element {
 
 #[component]
 pub fn NotYourTurn(state: Signal<ClientState>, game_state: PlayerVisibleGameState) -> Element {
-    rsx! {}
+    WEBSOCKET
+        .write()
+        .as_mut()
+        .expect("state transition guarded")
+        .set_onmessage(Some(Box::new(move |message| {
+            dispatch_next_game_state(state, message);
+        })));
+    rsx! {
+        div { class: "container",
+            div { class: "row",
+                h1 { "{game_state.players[game_state.turn].0}'s turn" }
+            }
+            Game {
+                game_state,
+                on_hand_click: |_| {},
+                on_board_click: |_| {},
+            }
+        }
+    }
 }
 
 #[component]
 pub fn YourTurn(state: Signal<ClientState>, game_state: PlayerVisibleGameState) -> Element {
-    rsx! {}
+    WEBSOCKET
+        .write()
+        .as_mut()
+        .expect("state transition guarded")
+        .set_onmessage(Some(Box::new(move |message| {
+            dispatch_next_game_state(state, message);
+        })));
+    let mut to_play = use_signal(|| None);
+    let mut sent = use_signal(|| false);
+
+    rsx! {
+        div { class: "container",
+            div { class: "row",
+                h1 { "Your turn" }
+            }
+            if !*sent.read()
+                && game_state.board.0.iter().all(|row| row.iter().all(|card| card.is_none()))
+            {
+                Game {
+                    game_state,
+                    on_hand_click: move |index| {
+                        WEBSOCKET
+                            .write()
+                            .as_mut()
+                            .expect("state transition guarded")
+                            .send(
+                                &serde_json::to_string(
+                                        &PlayerMove {
+                                            card: index,
+                                            location: (BOARD_SIZE / 2, BOARD_SIZE / 2),
+                                        },
+                                    )
+                                    .expect("should always be able to serialize moves"),
+                            );
+                        *sent.write() = true;
+                    },
+                    on_board_click: |_| {},
+                }
+            } else if !*sent.read() {
+                Game {
+                    game_state,
+                    to_play: *to_play.read(),
+                    on_hand_click: move |index| {
+                        let to_play = &mut *to_play.write();
+                        match to_play {
+                            Some(selected) if *selected == index => {
+                                *to_play = None;
+                            }
+                            Some(_) | None => {
+                                *to_play = Some(index);
+                            }
+                        }
+                    },
+                    on_board_click: move |location| {
+                        if let Some(card) = *to_play.read() {
+                            WEBSOCKET
+                                .write()
+                                .as_mut()
+                                .expect("state transition guarded")
+                                .send(
+                                    &serde_json::to_string(&PlayerMove { card, location })
+                                        .expect("should always be able to serialize moves"),
+                                );
+                            *sent.write() = true;
+                        }
+                    },
+                }
+            } else {
+                Game {
+                    game_state,
+                    on_hand_click: |_| {},
+                    on_board_click: |_| {},
+                }
+            }
+        }
+    }
 }
 
 #[component]
 pub fn YouLost(game_state: PlayerVisibleGameState) -> Element {
-    rsx! {}
+    rsx! {
+        div { class: "container",
+            div { class: "row",
+                h1 { "You lost ({game_state.players[game_state.turn].0}'s turn)" }
+            }
+            Game {
+                game_state,
+                on_hand_click: |_| {},
+                on_board_click: |_| {},
+            }
+        }
+    }
 }
 
 #[component]
 pub fn YouWin(game_state: PlayerVisibleGameState) -> Element {
-    rsx! {}
+    rsx! {
+        div { class: "container",
+            div { class: "row",
+                h1 { "You won" }
+            }
+            Game {
+                game_state,
+                on_hand_click: |_| {},
+                on_board_click: |_| {},
+            }
+        }
+    }
 }
 
 #[component]
