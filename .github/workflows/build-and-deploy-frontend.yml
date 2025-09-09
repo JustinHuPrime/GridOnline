@@ -5,7 +5,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -19,3 +19,11 @@ jobs:
       run: cargo test --verbose
     - name: Package
       run: dx bundle --platform web --package grid_client
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        role-to-assume: arn:aws:iam::491624026173:role/grid-online-s3-uploader
+        aws-region: ca-central-1
+    - name: Copy files
+      run: |
+        aws s3 sync target/dx/grid_client/release/web/public s3://grid.zootron.ca
