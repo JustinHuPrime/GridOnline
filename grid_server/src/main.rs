@@ -34,10 +34,10 @@ use axum::{
 };
 use clap::Parser;
 use futures_util::{SinkExt, StreamExt, stream::SplitSink};
-use rand::{Rng, distributions::Alphanumeric, thread_rng};
+use rand::{Rng, distributions::Alphanumeric, seq::SliceRandom, thread_rng};
 use tokio::{
     net::TcpListener,
-    sync::{Barrier, Mutex},
+    sync::{Barrier, Mutex, Semaphore},
 };
 
 use crate::model::{GameOptions, GameState};
@@ -80,7 +80,8 @@ impl ServerState {
                 ..
             } => {
                 // Extract player names from connections
-                let player_names: Vec<String> = connections.keys().cloned().collect();
+                let mut player_names: Vec<String> = connections.keys().cloned().collect();
+                player_names.shuffle(&mut thread_rng());
 
                 // Create the game state with the collected players
                 let game_state = GameState::new(player_names, options.clone());
@@ -113,8 +114,14 @@ impl ServerState {
 
         let mut disconnected_players = Vec::new();
 
-        for (i, (username, connection)) in connections.iter_mut().enumerate() {
-            let player_state = game_state.state_for(i);
+        for (username, connection) in connections.iter_mut() {
+            let player_state = game_state.state_for(
+                game_state
+                    .get_player_names()
+                    .iter()
+                    .position(|player_username| username == player_username)
+                    .unwrap(),
+            );
             let game_state_json = serde_json::to_string(&player_state).unwrap();
 
             if connection
@@ -152,7 +159,7 @@ impl ServerState {
     }
 
     /// Reset from Running state back to Lobby state for next game
-    fn reset_to_lobby(&mut self, num_players: usize) {
+    fn reset(&mut self, num_players: usize) {
         let ServerState::Running {
             game_state,
             join_code,
@@ -199,7 +206,11 @@ async fn main() {
 
     let app = Router::new()
         .route("/", get(websocket_handler))
-        .with_state((server_state, Arc::new(Barrier::new(args.num_players))));
+        .with_state((
+            server_state,
+            Arc::new(Barrier::new(args.num_players)),
+            Arc::new(Semaphore::new(0)),
+        ));
 
     let addr = SocketAddr::from(([127, 0, 0, 1], args.port));
     println!("Starting WebSocket server on ws://{}", addr);
@@ -216,16 +227,21 @@ async fn main() {
 async fn websocket_handler(
     ws: WebSocketUpgrade,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
-    State((state, next_state)): State<(Arc<Mutex<ServerState>>, Arc<Barrier>)>,
+    State((state, next_state, started_semaphore)): State<(
+        Arc<Mutex<ServerState>>,
+        Arc<Barrier>,
+        Arc<Semaphore>,
+    )>,
 ) -> Response {
     println!("New WebSocket connection established from {}", addr);
-    ws.on_upgrade(move |socket| handle_websocket(socket, state, next_state))
+    ws.on_upgrade(move |socket| handle_websocket(socket, state, next_state, started_semaphore))
 }
 
 async fn handle_websocket(
     socket: WebSocket,
     state: Arc<Mutex<ServerState>>,
     next_state: Arc<Barrier>,
+    started_semaphore: Arc<Semaphore>,
 ) {
     let protocol_error = Message::Close(Some(CloseFrame {
         code: 4002,
@@ -246,7 +262,7 @@ async fn handle_websocket(
         return;
     };
     let login = login.split('\n').collect::<Vec<_>>();
-    let [attempt_join_code, username] = *login.as_slice() else {
+    let [username, attempt_join_code] = *login.as_slice() else {
         let _ = send.send(protocol_error).await;
         return;
     };
@@ -275,7 +291,12 @@ async fn handle_websocket(
             }
 
             // Check if username is already taken
-            if connections.contains_key(username) {
+            if let Some(connection) = connections.get_mut(username)
+                && connection
+                    .send(Message::Ping("live-check".into()))
+                    .await
+                    .is_ok()
+            {
                 drop(state_guard);
                 let _ = send.send(Message::text("username taken")).await;
                 return;
@@ -292,6 +313,7 @@ async fn handle_websocket(
             // If game is full, start it
             if connections.len() == *num_players {
                 state_guard.start().await;
+                started_semaphore.add_permits(1);
             }
         }
         ServerState::Running {
@@ -315,7 +337,12 @@ async fn handle_websocket(
             };
 
             // Check if username is already connected
-            if connections.contains_key(username) {
+            if let Some(connection) = connections.get_mut(username)
+                && connection
+                    .send(Message::Ping("live-check".into()))
+                    .await
+                    .is_ok()
+            {
                 drop(state_guard);
                 let _ = send.send(Message::text("username")).await;
                 return;
@@ -339,11 +366,10 @@ async fn handle_websocket(
     };
     drop(state_guard);
 
+    drop(started_semaphore.acquire().await.unwrap());
+
     // gameplay flow
     loop {
-        // Wait at next_state barrier for next round
-        next_state.wait().await;
-
         // Check if it's the current player's turn
         let state_guard = state.lock().await;
         let ServerState::Running { game_state, .. } = &*state_guard else {
@@ -388,7 +414,8 @@ async fn handle_websocket(
                 }
 
                 // Reset server to lobby for next game
-                state_guard.reset_to_lobby(num_players);
+                state_guard.reset(num_players);
+                started_semaphore.forget_permits(1);
                 return;
             } else {
                 // Wait for a PlayerMove from current player
@@ -433,5 +460,8 @@ async fn handle_websocket(
         } else if current_player_has_won {
             return;
         }
+
+        // Wait at next_state barrier for next round
+        next_state.wait().await;
     }
 }
