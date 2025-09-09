@@ -195,6 +195,8 @@ async fn main() {
         return;
     }
 
+    println!("Grid Online server version {}", env!("CARGO_PKG_VERSION"));
+
     let join_code = generate_join_code();
     println!("Join code: {join_code}");
     let server_state = Arc::new(Mutex::new(ServerState::Lobby {

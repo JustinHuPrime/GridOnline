@@ -30,9 +30,11 @@ pub fn Join(state: Signal<ClientState>) -> Element {
     let mut submitting = use_signal(|| false);
     let mut error_message: Signal<Option<String>> = use_signal(|| None);
 
+    const VERSION: &str = env!("CARGO_PKG_VERSION");
+
     rsx! {
         div { class: "container",
-            h1 { class: "row mb-3", "Join Game" }
+            h1 { class: "row mb-3", "Grid Online version {VERSION}" }
             div { class: "row mb-3",
                 label {
                     r#for: "username",
