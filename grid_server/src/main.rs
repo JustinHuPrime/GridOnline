@@ -219,7 +219,7 @@ async fn main() {
             Arc::new(Semaphore::new(0)),
         ));
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], args.port));
+    let addr = SocketAddr::from(([0, 0, 0, 0], args.port));
     println!("Starting WebSocket server on ws://{}", addr);
 
     let listener = TcpListener::bind(addr).await.unwrap();

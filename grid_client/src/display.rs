@@ -60,12 +60,23 @@ fn Board(board: grid_common::Board, on_board_click: Callback<(usize, usize), ()>
                                     td { style: "font-size:200%;color:{card.0.colour()}", "{card}" }
                                 }
                             }
-                            None => rsx! {
-                                td {
-                                    style: "font-size:200%;color:#888888",
-                                    role: "button",
-                                    onclick: move |_| on_board_click((row_n, card_n)),
-                                    "🂠"
+                            None => {
+                                if board.can_play_at(row_n, card_n) {
+                                    rsx! {
+                                        td {
+                                            style: "font-size:200%;color:#888888",
+                                            role: "button",
+                                            onclick: move |_| on_board_click((row_n, card_n)),
+                                            "🂠"
+                                        }
+                                    }
+                                } else {
+                                    rsx! {
+                                        td {
+                                            style: "font-size:200%;color:#888888",
+                                            "🂠"
+                                        }
+                                    }
                                 }
                             },
                         }

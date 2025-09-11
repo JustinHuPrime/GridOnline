@@ -218,23 +218,10 @@ impl GameState {
             return false; // Card index out of bounds
         }
 
-        // Check - move must target empty space on the board
+        // Check - validate move location according to game rules
         let (row, col) = player_move.location;
-        if row >= BOARD_SIZE || col >= BOARD_SIZE {
-            return false; // Position out of bounds
-        }
-        if self.board.0[row][col].is_some() {
-            return false; // Position already occupied
-        }
-
-        // Check - if board is empty, move must target center of board
-        let is_board_empty = self
-            .board
-            .0
-            .iter()
-            .all(|row| row.iter().all(|cell| cell.is_none()));
-        if is_board_empty && (row != BOARD_SIZE / 2 || col != BOARD_SIZE / 2) {
-            return false; // First move must be in center
+        if !self.board.can_play_at(row, col) {
+            return false;
         }
 
         // Play the card
@@ -652,7 +639,7 @@ mod tests {
         let test_card_king = Card(Suit::Clubs, Value::King);
 
         // Place cards diagonally
-        game_state.board.0[3][3] = Some(test_card_king);
+        game_state.board.0[4][4] = Some(test_card_king);
         game_state.board.0[7][7] = Some(test_card_king);
 
         // Set up player's hand
@@ -688,7 +675,7 @@ mod tests {
         let card_five_clubs = Card(Suit::Clubs, Value::Five); // Same value, different suit
 
         // Place cards on board
-        game_state.board.0[5][3] = Some(card_three_hearts); // Should be taken (same suit, lower)
+        game_state.board.0[5][4] = Some(card_three_hearts); // Should be taken (same suit, lower)
         game_state.board.0[5][7] = Some(card_five_clubs); // Should be taken (same value)
 
         // Set up player's hand
@@ -704,7 +691,7 @@ mod tests {
         assert!(game_state.apply_move(center_move));
 
         // Both cards should be taken
-        assert!(game_state.board.0[5][3].is_none()); // Three of Hearts taken
+        assert!(game_state.board.0[5][4].is_none()); // Three of Hearts taken
         assert!(game_state.board.0[5][5].is_none()); // Played card taken
         assert!(game_state.board.0[5][7].is_none()); // Five of Clubs taken
         assert!(game_state.players[0].1.deck.0.len() > initial_deck_size);
@@ -723,7 +710,7 @@ mod tests {
         let card_king = Card(Suit::Hearts, Value::King);
 
         // Place different card on board
-        game_state.board.0[5][7] = Some(card_king);
+        game_state.board.0[5][6] = Some(card_king);
 
         // Set up player's hand
         game_state.players[0].1.hand.0[0] = card_ace;
@@ -740,7 +727,7 @@ mod tests {
 
         // Card should remain on board, no taking
         assert!(game_state.board.0[5][5].is_some()); // Played card stays
-        assert!(game_state.board.0[5][7].is_some()); // King stays
+        assert!(game_state.board.0[5][6].is_some()); // King stays
 
         // Deck size should decrease by 1 (drew 1 card to refill hand after playing 1)
         assert_eq!(game_state.players[0].1.deck.0.len(), initial_deck_size - 1);
@@ -802,7 +789,7 @@ mod tests {
         let card_queen = Card(Suit::Clubs, Value::Queen);
 
         // Place Queens in multiple directions from center
-        game_state.board.0[5][3] = Some(card_queen); // West
+        game_state.board.0[5][4] = Some(card_queen); // West
         game_state.board.0[5][7] = Some(card_queen); // East  
         game_state.board.0[3][5] = Some(card_queen); // North
         game_state.board.0[7][5] = Some(card_queen); // South
