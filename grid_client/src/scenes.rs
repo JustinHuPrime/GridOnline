@@ -149,9 +149,17 @@ pub fn Join(state: Signal<ClientState>) -> Element {
                 disabled: *submitting.read(),
                 "Join Game"
             }
-            p {
-                class: "row",
-                a { href: "https://github.com/JustinHuPrime/GridOnline", "View the source code" }
+            div { class: "row",
+                p {
+                    "Grid is free software licenced under the "
+                    a { href: "https://www.gnu.org/licenses/agpl.html",
+                        "GNU Affero General Public License"
+                    }
+                    br {}
+                    a { href: "https://github.com/JustinHuPrime/GridOnline",
+                        "View the source code here"
+                    }
+                }
             }
         }
     }

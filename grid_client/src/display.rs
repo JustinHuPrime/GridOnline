@@ -72,13 +72,10 @@ fn Board(board: grid_common::Board, on_board_click: Callback<(usize, usize), ()>
                                     }
                                 } else {
                                     rsx! {
-                                        td {
-                                            style: "font-size:200%;color:#888888",
-                                            "🂠"
-                                        }
+                                        td { style: "font-size:200%;color:#888888", "🂠" }
                                     }
                                 }
-                            },
+                            }
                         }
                     }
                 }
