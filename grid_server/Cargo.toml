@@ -15,7 +15,7 @@ axum-extra = "0.10.1"
 clap = { version = "4.5.47", features = ["derive"] }
 futures-util = "0.3.31"
 grid_common = { path = "../grid_common" }
-rand = "0.8"
+rand = "0.9"
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 thiserror = "2.0.16"
