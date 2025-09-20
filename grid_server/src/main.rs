@@ -34,7 +34,7 @@ use axum::{
 };
 use clap::Parser;
 use futures_util::{SinkExt, StreamExt, stream::SplitSink};
-use rand::{distr::Alphanumeric, rng, seq::SliceRandom, Rng};
+use rand::{Rng, distr::Alphanumeric, rng, seq::SliceRandom};
 use tokio::{net::TcpListener, sync::Mutex};
 
 use crate::model::{GameOptions, GameState};
@@ -381,13 +381,18 @@ async fn handle_websocket(socket: WebSocket, state: Arc<Mutex<ServerState>>) {
                 .await
                 .server_disconnect(username, protocol_error)
                 .await;
-            eprintln!("disconnected {username:?} for sending a bad message");
+            eprintln!("disconnected {username:?} for sending a bad message and/or disconnecting");
             return;
         };
 
         // check if it's the current player's turn
         let mut state_guard = state.lock().await;
-        let ServerState::Running { game_state, connections, .. } = &mut *state_guard else {
+        let ServerState::Running {
+            game_state,
+            connections,
+            ..
+        } = &mut *state_guard
+        else {
             unreachable!();
         };
         let current_player = game_state.current_player();

@@ -19,9 +19,9 @@
 
 //! Client for Grid Online
 
+mod display;
 mod scenes;
 mod websocket;
-mod display;
 
 use dioxus::prelude::*;
 use grid_common::PlayerVisibleGameState;
@@ -51,6 +51,16 @@ fn App() -> Element {
 
     rsx! {
         document::Link { rel: "stylesheet", href: asset!("/assets/main.css") }
+        document::Style {
+            r#"
+@font-face {{
+    font-family: 'DejaVu';
+    font-style: normal;
+    font-weight: normal;
+    src: url({asset!("/assets/DejaVuSans.woff2")}) format('woff2');
+}}
+"#
+        }
         document::Link {
             rel: "stylesheet",
             href: "https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css",

@@ -38,10 +38,10 @@ pub fn Join(state: Signal<ClientState>) -> Element {
             div { class: "row mb-3",
                 label {
                     r#for: "username",
-                    class: "form-label col-sm-1 col-form-label",
+                    class: "form-label col-lg-1 col-form-label",
                     "Username"
                 }
-                div { class: "col-sm-5",
+                div { class: "col-lg-5",
                     input {
                         r#type: "text",
                         id: "username",
@@ -53,10 +53,10 @@ pub fn Join(state: Signal<ClientState>) -> Element {
             div { class: "row mb-3",
                 label {
                     r#for: "server-url",
-                    class: "form-label col-sm-1 col-form-label",
+                    class: "form-label col-lg-1 col-form-label",
                     "Server URL"
                 }
-                div { class: "col-sm-5",
+                div { class: "col-lg-5",
                     input {
                         r#type: "text",
                         id: "server-url",
@@ -68,10 +68,10 @@ pub fn Join(state: Signal<ClientState>) -> Element {
             div { class: "row mb-3",
                 label {
                     r#for: "join-code",
-                    class: "form-label col-sm-1 col-form-label",
+                    class: "form-label col-lg-1 col-form-label",
                     "Join Code"
                 }
-                div { class: "col-sm-5",
+                div { class: "col-lg-5",
                     input {
                         r#type: "password",
                         id: "join-code",

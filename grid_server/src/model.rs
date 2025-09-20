@@ -24,8 +24,8 @@ use grid_common::{
     BOARD_SIZE, Board, Card, Deck, HAND_SIZE, Hand, PlayerMove, PlayerVisibleGameState, Suit, Value,
 };
 use rand::{
-    seq::{IteratorRandom, SliceRandom},
     rng,
+    seq::{IteratorRandom, SliceRandom},
 };
 
 #[derive(Clone, Args)]

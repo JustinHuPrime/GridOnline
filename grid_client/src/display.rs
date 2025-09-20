@@ -29,18 +29,18 @@ pub fn Game(
 ) -> Element {
     rsx! {
         div { class: "row",
-            div { class: "col-4",
+            div { class: "col-xl-4",
                 Board { board: game_state.board, on_board_click }
             }
-            div { class: "col-2",
+            div { class: "col-xl-2",
                 Standings { standings: game_state.players }
             }
         }
         div { class: "row",
-            div { class: "col-4",
+            div { class: "col-xl-4",
                 Hand { hand: game_state.hand, to_play, on_hand_click }
             }
-            div { class: "col-8",
+            div { class: "col-xl-8",
                 Deck { deck: game_state.deck }
             }
         }
@@ -57,14 +57,14 @@ fn Board(board: grid_common::Board, on_board_click: Callback<(usize, usize), ()>
                         match card {
                             Some(card) => {
                                 rsx! {
-                                    td { style: "font-size:200%;color:{card.0.colour()}", "{card}" }
+                                    td { style: "font-size: 200%; color: {card.0.colour()}; font-family: DejaVu", "{card}" }
                                 }
                             }
                             None => {
                                 if board.can_play_at(row_n, card_n) {
                                     rsx! {
                                         td {
-                                            style: "font-size:200%;color:#888888",
+                                            style: "font-size:200%; color:#888888; font-family: DejaVu",
                                             role: "button",
                                             onclick: move |_| on_board_click((row_n, card_n)),
                                             "🂠"
@@ -72,7 +72,7 @@ fn Board(board: grid_common::Board, on_board_click: Callback<(usize, usize), ()>
                                     }
                                 } else {
                                     rsx! {
-                                        td { style: "font-size:200%;color:#888888", "🂠" }
+                                        td { style: "font-size:200%; color:#888888; font-family: DejaVu", "🂠" }
                                     }
                                 }
                             }
@@ -90,7 +90,9 @@ fn Deck(deck: grid_common::Deck) -> Element {
         p {
             span { class: "user-select-none",
                 for card in deck.0.iter() {
-                    span { style: "font-size:200%;color:{card.0.colour()}", "{card}" }
+                    span { style: "font-size:200%; color:{card.0.colour()}; font-family: DejaVu",
+                        "{card}"
+                    }
                 }
             }
             br {}
@@ -106,7 +108,7 @@ fn Hand(
     on_hand_click: Callback<usize, ()>,
 ) -> Element {
     rsx! {
-        table { class: "user-select-none",
+        table { class: "user-select-none", style: "border-collapse: separate",
             tr {
                 for index in 0..HAND_SIZE {
                     {
@@ -114,18 +116,15 @@ fn Hand(
                         match card {
                             Some(card) => rsx! {
                                 td {
-                                    style: "font-size:400%;color:{card.0.colour()}",
+                                    style: "font-size:400%; color:{card.0.colour()}; font-family: DejaVu",
                                     role: "button",
+                                    class: if to_play.is_some_and(|to_play| to_play == index) { "border border-3 border-dark" } else { "border border-3 border-white" },
                                     onclick: move |_| on_hand_click(index),
-                                    if to_play.is_some_and(|to_play| to_play == index) {
-                                        b { "{card}" }
-                                    } else {
-                                        "{card}"
-                                    }
+                                    "{card}"
                                 }
                             },
                             None => rsx! {
-                                td { style: "font-size:400%;color:#888888", "🂠" }
+                                td { style: "font-size:400%; color:#888888; font-family: DejaVu", "🂠" }
                             },
                         }
                     }
