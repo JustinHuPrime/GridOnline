@@ -192,19 +192,14 @@ impl GameState {
             .unwrap()
     }
 
-    /// Check if the current player has won (all other players have no cards left)
-    pub fn current_player_has_won(&self) -> bool {
-        // A player wins when all OTHER players have no cards left
+    /// Check if any player has won (exactly one player has cards)
+    pub fn someone_has_won(&self) -> bool {
+        // note - zero should not be possible here, since one move ago exactly one player had a card
         self.players
             .iter()
-            .enumerate()
-            .filter(|(i, _)| *i != self.turn) // Exclude current player
-            .all(|(_, (_, player_state))| !player_state.has_cards())
-    }
-
-    /// Skip the current player's turn and move to the next player
-    pub fn skip_player(&mut self) {
-        self.turn = (self.turn + 1) % self.players.len();
+            .filter(|(_, state)| state.has_cards())
+            .count()
+            <= 1
     }
 
     /// Make a move
@@ -258,8 +253,11 @@ impl GameState {
             current_player.hand.0.push(current_player.deck.0.remove(0));
         }
 
-        // Move to next player's turn
+        // Move to next player's turn, skip players with no cards (must have at least one player with cards)
         self.turn = (self.turn + 1) % self.players.len();
+        while !self.current_player().1.has_cards() {
+            self.turn = (self.turn + 1) % self.players.len();
+        }
 
         true
     }

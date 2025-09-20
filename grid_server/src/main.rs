@@ -35,10 +35,7 @@ use axum::{
 use clap::Parser;
 use futures_util::{SinkExt, StreamExt, stream::SplitSink};
 use rand::{Rng, distributions::Alphanumeric, seq::SliceRandom, thread_rng};
-use tokio::{
-    net::TcpListener,
-    sync::{Barrier, Mutex, Semaphore},
-};
+use tokio::{net::TcpListener, sync::Mutex};
 
 use crate::model::{GameOptions, GameState};
 use grid_common::PlayerMove;
@@ -148,6 +145,7 @@ impl ServerState {
         let ServerState::Running { connections, .. } = self else {
             panic!("tried to disconnect from an non-running server");
         };
+        eprintln!("disconnecting {username}");
         connections.remove(username);
     }
 
@@ -213,11 +211,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/", get(websocket_handler))
-        .with_state((
-            server_state,
-            Arc::new(Barrier::new(args.num_players)),
-            Arc::new(Semaphore::new(0)),
-        ));
+        .with_state(server_state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], args.port));
     println!("Starting WebSocket server on ws://{}", addr);
@@ -231,26 +225,16 @@ async fn main() {
     .unwrap();
 }
 
-#[expect(clippy::type_complexity)]
 async fn websocket_handler(
     ws: WebSocketUpgrade,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
-    State((state, next_state, started_semaphore)): State<(
-        Arc<Mutex<ServerState>>,
-        Arc<Barrier>,
-        Arc<Semaphore>,
-    )>,
+    State(state): State<Arc<Mutex<ServerState>>>,
 ) -> Response {
     eprintln!("New WebSocket connection established from {}", addr);
-    ws.on_upgrade(move |socket| handle_websocket(socket, state, next_state, started_semaphore))
+    ws.on_upgrade(move |socket| handle_websocket(socket, state))
 }
 
-async fn handle_websocket(
-    socket: WebSocket,
-    state: Arc<Mutex<ServerState>>,
-    next_state: Arc<Barrier>,
-    started_semaphore: Arc<Semaphore>,
-) {
+async fn handle_websocket(socket: WebSocket, state: Arc<Mutex<ServerState>>) {
     let protocol_error = Message::Close(Some(CloseFrame {
         code: 4002,
         reason: "protocol error".into(),
@@ -284,13 +268,13 @@ async fn handle_websocket(
             join_code,
             ..
         } => {
-            eprintln!("{username} trying to join new game with code {attempt_join_code}");
+            eprintln!("{username:?} trying to join new game with code {attempt_join_code:?}");
 
             // check join code
             if join_code != attempt_join_code {
                 drop(state_guard);
                 let _ = send.send(Message::text("join code")).await;
-                eprintln!("{username} rejected - bad join code");
+                eprintln!("{username:?} rejected - bad join code");
                 return;
             }
 
@@ -298,7 +282,7 @@ async fn handle_websocket(
             if connections.len() >= *num_players {
                 drop(state_guard);
                 let _ = send.send(Message::text("game full")).await;
-                eprintln!("{username} rejected - game full");
+                eprintln!("{username:?} rejected - game full");
                 return;
             }
 
@@ -312,7 +296,7 @@ async fn handle_websocket(
                 drop(state_guard);
                 let _ = send.send(Message::text("username taken")).await;
                 eprintln!(
-                    "{username} rejected - there is an existing connection for that username"
+                    "{username:?} rejected - there is an existing connection for that username"
                 );
                 return;
             }
@@ -328,7 +312,6 @@ async fn handle_websocket(
             // If game is full, start it
             if connections.len() == *num_players {
                 state_guard.start().await;
-                started_semaphore.add_permits(1);
                 eprintln!("game starting");
             }
         }
@@ -337,13 +320,13 @@ async fn handle_websocket(
             connections,
             join_code,
         } => {
-            eprintln!("{username} trying to join existing game with code {attempt_join_code}");
+            eprintln!("{username:?} trying to join existing game with code {attempt_join_code:?}");
 
             // Check join code
             if join_code != attempt_join_code {
                 drop(state_guard);
                 let _ = send.send(Message::text("join code")).await;
-                eprintln!("{username} rejected - bad join code");
+                eprintln!("{username:?} rejected - bad join code");
                 return;
             }
 
@@ -352,7 +335,7 @@ async fn handle_websocket(
             let Some(player_index) = player_names.iter().position(|name| name == username) else {
                 drop(state_guard);
                 let _ = send.send(Message::text("full")).await;
-                eprintln!("{username} rejected - game full");
+                eprintln!("{username:?} rejected - game full");
                 return;
             };
 
@@ -366,7 +349,7 @@ async fn handle_websocket(
                 drop(state_guard);
                 let _ = send.send(Message::text("username")).await;
                 eprintln!(
-                    "{username} rejected - there is an existing connection for that username"
+                    "{username:?} rejected - there is an existing connection for that username"
                 );
                 return;
             }
@@ -389,106 +372,72 @@ async fn handle_websocket(
     };
     drop(state_guard);
 
-    drop(started_semaphore.acquire().await.unwrap());
-
     // gameplay flow
     loop {
-        // Check if it's the current player's turn
-        let state_guard = state.lock().await;
-        let ServerState::Running { game_state, .. } = &*state_guard else {
+        // get a move
+        let Some(Ok(Message::Text(text))) = recv.next().await else {
+            state
+                .lock()
+                .await
+                .server_disconnect(username, protocol_error)
+                .await;
+            eprintln!("disconnected {username:?} for sending a bad message");
+            return;
+        };
+
+        // check if it's the current player's turn
+        let mut state_guard = state.lock().await;
+        let ServerState::Running { game_state, connections, .. } = &mut *state_guard else {
             unreachable!();
         };
         let current_player = game_state.current_player();
-        let is_current_player = current_player.0 == username;
-        let current_player_has_cards = current_player.1.has_cards();
-        let current_player_has_won = game_state.current_player_has_won();
-        drop(state_guard);
-
-        if is_current_player {
-            // if current player has no cards, skip the current player's turn and rebroadcast state
-            if !current_player_has_cards {
-                eprintln!("skipping {username}'s turn - they have no cards");
-                let mut state_guard = state.lock().await;
-                let ServerState::Running { game_state, .. } = &mut *state_guard else {
-                    unreachable!();
-                };
-                game_state.skip_player();
-                state_guard.broadcast_state().await;
-                drop(state_guard);
-            } else if current_player_has_won {
-                eprintln!("{username} has won");
-                let mut state_guard = state.lock().await;
-                let ServerState::Running {
-                    connections,
-                    game_state,
-                    ..
-                } = &mut *state_guard
-                else {
-                    unreachable!();
-                };
-
-                let winner_message = end_of_game(username);
-                let to_disconnect = connections.keys().cloned().collect::<Vec<_>>();
-                let num_players = game_state.get_player_names().len();
-
-                for username in to_disconnect {
-                    let _ = state_guard
-                        .server_disconnect(&username, winner_message.clone())
-                        .await;
-                }
-
-                // Reset server to lobby for next game
-                state_guard.reset(num_players);
-                started_semaphore.forget_permits(1);
-                return;
-            } else {
-                eprintln!("waiting for move from {username}");
-
-                // Wait for a PlayerMove from current player
-                let Some(Ok(Message::Text(text))) = recv.next().await else {
-                    state
-                        .lock()
-                        .await
-                        .server_disconnect(username, protocol_error)
-                        .await;
-                    return;
-                };
-                let Ok(player_move) = serde_json::from_str::<PlayerMove>(&text) else {
-                    state
-                        .lock()
-                        .await
-                        .server_disconnect(username, protocol_error)
-                        .await;
-                    return;
-                };
-
-                // Try to apply the move
-                let mut state_guard = state.lock().await;
-                let ServerState::Running { game_state, .. } = &mut *state_guard else {
-                    unreachable!();
-                };
-                let move_valid = game_state.apply_move(player_move);
-
-                if !move_valid {
-                    // Invalid move, disconnect player
-                    state
-                        .lock()
-                        .await
-                        .server_disconnect(username, protocol_error)
-                        .await;
-                    eprintln!("disconnected {username} for playing a bad move");
-                    return;
-                }
-
-                // Broadcast updated game state to all players
-                state_guard.broadcast_state().await;
-                drop(state_guard);
-            }
-        } else if current_player_has_won {
+        if username != current_player.0 {
+            // not the current player! protocol error!
+            state_guard
+                .server_disconnect(username, protocol_error)
+                .await;
+            eprintln!("disconnected {username:?} for playing a move out of turn");
             return;
         }
 
-        // Wait at next_state barrier for next round
-        next_state.wait().await;
+        // is current player - decode and try to apply the move
+        let Ok(player_move) = serde_json::from_str::<PlayerMove>(&text) else {
+            state_guard
+                .server_disconnect(username, protocol_error)
+                .await;
+            eprintln!("disconnected {username:?} unable to parse move");
+            return;
+        };
+
+        if !game_state.apply_move(player_move) {
+            // Invalid move, disconnect player
+            state_guard
+                .server_disconnect(username, protocol_error)
+                .await;
+            eprintln!("disconnected {username:?} for playing a bad move");
+            return;
+        }
+
+        if game_state.someone_has_won() {
+            eprintln!("{username:?} has won");
+
+            let winner_message = end_of_game(username);
+            let to_disconnect = connections.keys().cloned().collect::<Vec<_>>();
+            let num_players = game_state.get_player_names().len();
+
+            for username in to_disconnect {
+                let _ = state_guard
+                    .server_disconnect(&username, winner_message.clone())
+                    .await;
+            }
+
+            // Reset server to lobby for next game
+            state_guard.reset(num_players);
+            return;
+        }
+
+        // Broadcast updated game state to all players
+        state_guard.broadcast_state().await;
+        drop(state_guard);
     }
 }
