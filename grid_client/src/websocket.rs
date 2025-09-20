@@ -25,7 +25,7 @@ use std::{
 };
 
 use wasm_bindgen::prelude::*;
-use web_sys::{Event, MessageEvent, WebSocket};
+use web_sys::{CloseEvent, Event, MessageEvent, WebSocket};
 
 struct Handler<T> {
     #[expect(clippy::type_complexity)]
@@ -89,6 +89,8 @@ pub struct WebSocketClient {
     raw_ws: WebSocket,
     _raw_on_open: Option<EventListener>,
     _raw_on_message: EventListener,
+    _raw_on_error: EventListener,
+    _raw_on_close: EventListener,
     queue: Rc<RefCell<VecDeque<String>>>,
     error: Rc<RefCell<Option<JsValue>>>,
     on_message: Rc<Handler<String>>,
@@ -136,6 +138,53 @@ impl WebSocketClient {
                             handler(msg);
                         } else {
                             on_message_queue.borrow_mut().push_back(msg);
+                        }
+                    }
+                }
+            }),
+            _raw_on_error: EventListener::new(raw_ws.clone().into(), "error", {
+                let on_error_cell = error.clone();
+                let handler = on_error.clone();
+                move |error| {
+                    let mut handler = handler.borrow_mut();
+                    if let Some(ref mut handler) = *handler {
+                        handler(error.into());
+                    } else {
+                        *on_error_cell.borrow_mut() = Some(error.into());
+                    }
+                }
+            }),
+            _raw_on_close: EventListener::new(raw_ws.clone().into(), "close", {
+                let on_close_cell = error.clone();
+                let error_handler = on_error.clone();
+                let on_message_queue = queue.clone();
+                let message_handler = on_message.clone();
+                move |event| {
+                    let close_event = event.dyn_into::<CloseEvent>();
+                    match close_event {
+                        Ok(event) if event.was_clean() => {
+                            let mut handler = message_handler.borrow_mut();
+                            if let Some(ref mut handler) = *handler {
+                                handler(event.reason());
+                            } else {
+                                on_message_queue.borrow_mut().push_back(event.reason());
+                            }
+                        }
+                        Ok(event) => {
+                            let mut handler = error_handler.borrow_mut();
+                            if let Some(ref mut handler) = *handler {
+                                handler(event.into());
+                            } else {
+                                *on_close_cell.borrow_mut() = Some(event.into())
+                            }
+                        }
+                        Err(event) => {
+                            let mut handler = error_handler.borrow_mut();
+                            if let Some(ref mut handler) = *handler {
+                                handler(event.into());
+                            } else {
+                                *on_close_cell.borrow_mut() = Some(event.into());
+                            }
                         }
                     }
                 }
