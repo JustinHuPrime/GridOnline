@@ -34,7 +34,7 @@ use axum::{
 };
 use clap::Parser;
 use futures_util::{SinkExt, StreamExt, stream::SplitSink};
-use rand::{Rng, distributions::Alphanumeric, seq::SliceRandom, thread_rng};
+use rand::{distr::Alphanumeric, rng, seq::SliceRandom, Rng};
 use tokio::{net::TcpListener, sync::Mutex};
 
 use crate::model::{GameOptions, GameState};
@@ -78,7 +78,7 @@ impl ServerState {
             } => {
                 // Extract player names from connections
                 let mut player_names: Vec<String> = connections.keys().cloned().collect();
-                player_names.shuffle(&mut thread_rng());
+                player_names.shuffle(&mut rng());
 
                 // Create the game state with the collected players
                 let game_state = GameState::new(player_names, options.clone());
@@ -183,7 +183,7 @@ impl ServerState {
 
 fn generate_join_code() -> String {
     (0..16)
-        .map(|_| thread_rng().sample(Alphanumeric) as char)
+        .map(|_| rng().sample(Alphanumeric) as char)
         .collect()
 }
 

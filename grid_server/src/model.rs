@@ -25,7 +25,7 @@ use grid_common::{
 };
 use rand::{
     seq::{IteratorRandom, SliceRandom},
-    thread_rng,
+    rng,
 };
 
 #[derive(Clone, Args)]
@@ -86,7 +86,7 @@ impl GameState {
         }
 
         // Shuffle the deck
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         deck.shuffle(&mut rng);
 
         let mut players = Vec::new();
@@ -245,7 +245,7 @@ impl GameState {
             .into_iter()
             .filter_map(|(row, col)| self.board.0[row][col].take())
             .collect::<Vec<_>>();
-        taken_cards.shuffle(&mut thread_rng());
+        taken_cards.shuffle(&mut rng());
         current_player.deck.0.extend(taken_cards);
 
         // Draw cards from deck to fill hand to HAND_SIZE
