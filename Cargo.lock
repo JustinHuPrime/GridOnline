@@ -2058,11 +2058,8 @@ version = "0.1.2"
 dependencies = [
  "dioxus",
  "grid_common",
- "js-sys",
  "serde",
  "serde_json",
- "wasm-bindgen",
- "web-sys",
  "ws-queue-web",
 ]
 
