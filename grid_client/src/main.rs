@@ -21,13 +21,12 @@
 
 mod display;
 mod scenes;
-mod websocket;
 
 use dioxus::prelude::*;
 use grid_common::PlayerVisibleGameState;
+use ws_queue_web::WebSocketClient;
 
 use crate::scenes::*;
-use crate::websocket::WebSocketClient;
 
 static WEBSOCKET: GlobalSignal<Option<WebSocketClient>> = Global::new(|| None);
 

@@ -19,8 +19,9 @@
 
 use dioxus::prelude::*;
 use grid_common::{BOARD_SIZE, PlayerMove, PlayerVisibleGameState};
+use ws_queue_web::WebSocketClient;
 
-use crate::{ClientState, WEBSOCKET, display::Game, websocket::WebSocketClient};
+use crate::{ClientState, WEBSOCKET, display::Game};
 
 #[component]
 pub fn Join(state: Signal<ClientState>) -> Element {
