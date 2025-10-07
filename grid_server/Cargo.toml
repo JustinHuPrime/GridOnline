@@ -9,7 +9,7 @@ repository = "https://github.com/JustinHuPrime/GridOnline"
 license = "AGPL-3.0-or-later"
 
 [dependencies]
-anyhow = "1.0.99"
+anyhow = "1.0.100"
 axum = { version = "0.8.4", features = ["tokio", "ws"] }
 axum-extra = "0.10.1"
 clap = { version = "4.5.47", features = ["derive"] }
