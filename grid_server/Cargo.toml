@@ -1,6 +1,6 @@
 [package]
 name = "grid_server"
-version = "0.1.2"
+version = "0.1.3"
 authors = ["Justin Hu <justin.hu@alumni.ubc.ca>"]
 edition = "2024"
 description = "Game server for Grid, a card game"

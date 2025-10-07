@@ -375,14 +375,21 @@ async fn handle_websocket(socket: WebSocket, state: Arc<Mutex<ServerState>>) {
     // gameplay flow
     loop {
         // get a move
-        let Some(Ok(Message::Text(text))) = recv.next().await else {
-            state
-                .lock()
-                .await
-                .server_disconnect(username, protocol_error)
-                .await;
-            eprintln!("disconnected {username:?} for sending a bad message and/or disconnecting");
-            return;
+        let text = match recv.next().await {
+            Some(Ok(Message::Text(text))) => text,
+            Some(Ok(Message::Ping(_))) => continue,
+            Some(Ok(Message::Pong(_))) => continue,
+            _ => {
+                state
+                    .lock()
+                    .await
+                    .server_disconnect(username, protocol_error)
+                    .await;
+                eprintln!(
+                    "disconnected {username:?} for sending a bad message and/or disconnecting"
+                );
+                return;
+            }
         };
 
         // check if it's the current player's turn
