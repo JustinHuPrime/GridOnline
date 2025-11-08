@@ -331,6 +331,19 @@ pub fn Error(message: String) -> Element {
     }
 }
 
+#[component]
+pub fn GameEnd(winner: String) -> Element {
+    rsx! {
+        div { class: "container",
+            h1 { "{winner} won!" }
+            p {
+                "The game has ended. "
+                a { href: "/", class: "btn btn-primary", "Start a new game" }
+            }
+        }
+    }
+}
+
 fn protocol_error(mut state: Signal<ClientState>) {
     state.set(ClientState::Error(
         "Connection lost: protocol error".to_string(),
@@ -339,6 +352,19 @@ fn protocol_error(mut state: Signal<ClientState>) {
 }
 
 fn dispatch_next_game_state(mut state: Signal<ClientState>, message: String) {
+    // Check if this is a game end message (from close frame)
+    if let Some(winner) = message.strip_prefix("player won\n") {
+        WEBSOCKET
+            .write()
+            .as_mut()
+            .expect("state transition guarded")
+            .set_onmessage(None);
+        state.set(ClientState::GameEnd {
+            winner: winner.to_string(),
+        });
+        return;
+    }
+
     let Ok(game_state) = serde_json::from_str::<PlayerVisibleGameState>(&message) else {
         protocol_error(state);
         return;
