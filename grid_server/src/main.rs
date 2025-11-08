@@ -142,23 +142,36 @@ impl ServerState {
     }
 
     fn lost_connection(&mut self, username: &str) {
-        let ServerState::Running { connections, .. } = self else {
-            panic!("tried to disconnect from an non-running server");
-        };
-        eprintln!("disconnecting {username}");
-        connections.remove(username);
+        match self {
+            ServerState::Running { connections, .. } => {
+                eprintln!("disconnecting {username}");
+                connections.remove(username);
+            }
+            ServerState::Lobby { connections, .. } => {
+                eprintln!("disconnecting {username} from lobby");
+                connections.remove(username);
+            }
+        }
     }
 
     async fn server_disconnect(&mut self, username: &str, reason: Message) {
-        let ServerState::Running { connections, .. } = self else {
-            panic!("tried to drop client from a non-running server");
-        };
-        let _ = connections
-            .get_mut(username)
-            .expect("should only drop connected players")
-            .send(reason)
-            .await;
-        self.lost_connection(username);
+        match self {
+            ServerState::Running { connections, .. } => {
+                let _ = connections
+                    .get_mut(username)
+                    .expect("should only drop connected players")
+                    .send(reason)
+                    .await;
+                self.lost_connection(username);
+            }
+            ServerState::Lobby { connections, .. } => {
+                // Server has already reset to lobby, just try to send the message if the connection still exists
+                if let Some(connection) = connections.get_mut(username) {
+                    let _ = connection.send(reason).await;
+                }
+                self.lost_connection(username);
+            }
+        }
     }
 
     /// Reset from Running state back to Lobby state for next game
