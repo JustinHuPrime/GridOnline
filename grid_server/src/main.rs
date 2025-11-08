@@ -249,9 +249,17 @@ async fn handle_websocket(socket: WebSocket, state: Arc<Mutex<ServerState>>) {
 
     let (mut send, mut recv) = socket.split();
 
-    let Some(Ok(Message::Text(login))) = recv.next().await else {
-        let _ = send.send(protocol_error).await;
-        return;
+    // Wait for login message, skipping any ping/pong messages
+    let login = loop {
+        match recv.next().await {
+            Some(Ok(Message::Text(text))) => break text,
+            Some(Ok(Message::Ping(_))) => continue,
+            Some(Ok(Message::Pong(_))) => continue,
+            _ => {
+                let _ = send.send(protocol_error).await;
+                return;
+            }
+        }
     };
     let login = login.split('\n').collect::<Vec<_>>();
     let [username, attempt_join_code] = *login.as_slice() else {
