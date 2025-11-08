@@ -25,7 +25,7 @@ jobs:
     - name: Test
       run: cargo test --verbose
 
-    - name: Package
+    - name: Build
       run: dx bundle --platform web --package grid_client
 
     - name: Configure AWS Credentials
