@@ -150,15 +150,24 @@ impl ServerState {
     }
 
     async fn server_disconnect(&mut self, username: &str, reason: Message) {
-        let ServerState::Running { connections, .. } = self else {
-            panic!("tried to drop client from a non-running server");
-        };
-        let _ = connections
-            .get_mut(username)
-            .expect("should only drop connected players")
-            .send(reason)
-            .await;
-        self.lost_connection(username);
+        match self {
+            ServerState::Running { connections, .. } => {
+                let _ = connections
+                    .get_mut(username)
+                    .expect("should only drop connected players")
+                    .send(reason)
+                    .await;
+                self.lost_connection(username);
+            }
+            ServerState::Lobby { connections, .. } => {
+                // In lobby state, just send the message and remove the connection
+                eprintln!("disconnecting {username} from lobby");
+                let _ = connections
+                    .get_mut(username)
+                    .map(|conn| conn.send(reason));
+                connections.remove(username);
+            }
+        }
     }
 
     /// Reset from Running state back to Lobby state for next game
@@ -442,14 +451,15 @@ async fn handle_websocket(socket: WebSocket, state: Arc<Mutex<ServerState>>) {
             eprintln!("{username:?} has won");
 
             let winner_message = end_of_game(username);
-            let to_disconnect = connections.keys().cloned().collect::<Vec<_>>();
             let num_players = game_state.get_player_names().len();
-
-            for username in to_disconnect {
-                let _ = state_guard
-                    .server_disconnect(&username, winner_message.clone())
-                    .await;
+            
+            // Send disconnect messages to all connected clients
+            for connection in connections.values_mut() {
+                let _ = connection.send(winner_message.clone()).await;
             }
+            
+            // Clear all connections
+            connections.clear();
 
             // Reset server to lobby for next game
             state_guard.reset(num_players);

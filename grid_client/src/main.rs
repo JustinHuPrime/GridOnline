@@ -38,6 +38,7 @@ enum ClientState {
     YourTurn(PlayerVisibleGameState),
     YouLost(PlayerVisibleGameState),
     YouWin(PlayerVisibleGameState),
+    GameEnd { winner: String },
 }
 
 fn main() {
@@ -123,6 +124,11 @@ fn App() -> Element {
             ClientState::YouWin(ref game_state) => {
                 rsx! {
                     YouWin { game_state: game_state.clone() }
+                }
+            }
+            ClientState::GameEnd { ref winner } => {
+                rsx! {
+                    GameEnd { winner: winner.clone() }
                 }
             }
         }
