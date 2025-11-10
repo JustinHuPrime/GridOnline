@@ -5549,8 +5549,8 @@ dependencies = [
 
 [[package]]
 name = "ws-queue-web"
-version = "0.1.0"
-source = "git+https://github.com/JustinHuPrime/ws-queue-web.git#3b75be84d654ae0f1ccb7d80799023b659e7581d"
+version = "0.2.0"
+source = "git+https://github.com/JustinHuPrime/ws-queue-web.git#c60cdc8f9222ae7761964162f47b9528c22dbc00"
 dependencies = [
  "wasm-bindgen",
  "web-sys",
